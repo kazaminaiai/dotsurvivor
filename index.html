@@ -172,6 +172,7 @@
 <div class="overlay" id="ovl-lvup">
   <div class="tlt" style="color:var(--gold)" id="lvup-title">LEVEL UP!</div>
   <div id="lvup-cards"></div>
+  <button class="btn pink" id="b-lvok" style="display:none;margin-top:6px;">✓ これにする!</button>
   <div style="display:flex;gap:10px;margin-top:8px;">
     <button class="btn" id="b-banish" style="width:auto;padding:9px 14px;font-size:12px;margin:0;">🚫 削除 ×2</button>
     <button class="btn" id="b-reroll" style="width:auto;padding:9px 14px;font-size:12px;margin:0;">🔄 更新 ×2</button>
@@ -184,6 +185,7 @@
   <div class="tlt" style="color:var(--gold)">✨ たからばこ ✨</div>
   <div style="font-size:12px;color:#b6aed8;margin-bottom:8px;">ひとつ選んでね♪</div>
   <div id="chest-cards"></div>
+  <button class="btn gold" id="b-chestok" style="display:none;margin-top:6px;">✓ これにする!</button>
 </div>
 
 <!-- ポーズ -->
@@ -254,6 +256,11 @@ const SHOP = [
   {id:"cool",  name:"はやまわし時計",desc:"攻撃間隔 -4% / Lv", max:5,  base:270, mul:2.1},
   {id:"regen", name:"やさしい絆創膏",desc:"HP自動回復 +0.25/s / Lv", max:5, base:230, mul:2.1},
   {id:"revive",name:"いのちの花",   desc:"倒れても1回復活 (+1回/Lv)", max:2, base:1500, mul:3.5},
+  {id:"reroll",name:"リロールチケット", desc:"レベルアップの更新回数 +1 / Lv", max:3, base:600, mul:2.4},
+  {id:"banish",name:"バニッシュノート", desc:"レベルアップの削除回数 +1 / Lv", max:3, base:600, mul:2.4},
+  {id:"swift", name:"かぜのくつひも", desc:"弾のスピード +5% / Lv", max:5, base:260, mul:2.0},
+  {id:"exp",   name:"べんきょうノート", desc:"獲得経験値 +5% / Lv", max:5, base:300, mul:2.1},
+  {id:"luck",  name:"こううんのお守り", desc:"アイテム&コイン運 +10% / Lv", max:5, base:300, mul:2.1},
 ];
 /* レベルが上がるほど要求ゴールドが跳ね上がる (指数 × 二次補正) */
 function shopCost(it){
@@ -276,6 +283,14 @@ const CHARS = [
     hair:"#ffb45c", hairS:"#e08c2e", dress:"#c23b3b", dressS:"#952727", accent:"#ffd24a", shoe:"#c8ccd8",
     hp:145, spd:0.9, might:1.1, weapon:"blade", cost:1200,
     desc:"金の鉢巻と長い髪の重戦士。<br>タフで火力高め / 初期武器: オービットブレード"},
+  {id:"mio", name:"みお", title:"ふしぎな司書",
+    hair:"#9b7edb", hairS:"#7a5cbb", dress:"#3d2f5c", dressS:"#2a1f42", accent:"#c8b8ff", shoe:"#2a2542",
+    hp:90, spd:1.05, might:1.05, weapon:"book", cost:2500,
+    desc:"メガネと三つ編みの本の虫。<br>魔力型 / 初期武器: まほうの本"},
+  {id:"hana", name:"はな", title:"ようせいテイマー",
+    hair:"#8fd48f", hairS:"#63b063", dress:"#ff9ab0", dressS:"#d97890", accent:"#ffd24a", shoe:"#b06a4a",
+    hp:115, spd:0.95, might:1.0, weapon:"fairy", cost:4500,
+    desc:"花かんむりの妖精つかい。<br>召喚型 / 初期武器: ようせい"},
 ];
 let selectedChar = "koharu";
 
@@ -328,6 +343,24 @@ const WEAPONS = {
   mine:{name:"じらい", desc:"踏んだ敵が爆発する地雷を設置", max:7,
     st:(l,e)=>({dmg:(24+10*l)*(e?1.8:1), cd:2.4-0.12*l,
       count:1+(l>=3?1:0)+(l>=6?1:0)+(e?1:0), blast:(56+3*l)*(e?1.5:1)})},
+  lance:{name:"ランス", desc:"最寄りの敵へ全貫通の突撃槍", max:7,
+    st:(l,e)=>({dmg:(16+7*l)*(e?1.6:1), cd:1.7-0.09*l,
+      count:1+(l>=4?1:0)+(e?1:0), spd:500})},
+  nova:{name:"ノヴァパルス", desc:"広がる衝撃波で周囲を一掃", max:7,
+    st:(l,e)=>({dmg:(14+6*l)*(e?1.8:1), cd:(3.0-0.16*l)*(e?0.85:1),
+      maxR:(110+10*l)*(e?1.5:1)})},
+  book:{name:"まほうの本", desc:"回転しながら広がる魔法のページ", max:7,
+    st:(l,e)=>({dmg:(8+3.5*l)*(e?1.5:1), cd:1.8-0.09*l,
+      count:Math.round((6+l)*(e?1.5:1)), spd:170, pierce:e?1:0})},
+  fairy:{name:"ようせい", desc:"周囲を飛び回り敵を撃つ妖精", max:7,
+    st:(l,e)=>({count:1+Math.floor(l/3)+(e?1:0), dmg:(12+5*l)*(e?1.6:1),
+      cd:(0.85-0.045*l)*(e?0.8:1), range:(75+3*l)*(e?1.4:1)})},
+  card:{name:"トランプカード", desc:"斜め4方向に舞うカード", max:7,
+    st:(l,e)=>({dmg:(9+4*l)*(e?1.5:1), cd:1.15-0.06*l,
+      dirs:e?8:4, spd:300+8*l, pierce:e?999:1})},
+  hammer:{name:"ハンマー", desc:"敵の頭上に降る粉砕の鎚", max:7,
+    st:(l,e)=>({dmg:(30+13*l)*(e?1.8:1), cd:2.9-0.15*l,
+      blast:(70+5*l)*(e?1.5:1), count:1+(l>=6?1:0)+(e?1:0)})},
 };
 /* ============ 進化レシピ (16種) ============ */
 const EVOS = {
@@ -347,8 +380,14 @@ const EVOS = {
   rain:     {req:"magnet", name:"メテオレイン",       desc:"矢の数2倍・超広範囲の豪雨"},
   homing:   {req:"power",  name:"ラブマックス",       desc:"ハート+2 貫通する愛の弾幕"},
   mine:     {req:"amulet", name:"メガマイン",         desc:"爆発範囲・威力が激増した大地雷"},
+  lance:    {req:"swift",  name:"シャイニングランス", desc:"槍+1 音速で貫く光の槍"},
+  card:     {req:"swift",  name:"ロイヤルフラッシュ", desc:"8方向に舞う全貫通のカード"},
+  book:     {req:"exp",    name:"きんだんの魔導書",   desc:"ページ1.5倍+貫通する禁断の知識"},
+  nova:     {req:"exp",    name:"スーパーノヴァ",     desc:"超巨大な衝撃波。威力激増"},
+  fairy:    {req:"luck",   name:"フェアリークイーン", desc:"妖精+1 広範囲を高速で浄化"},
+  hammer:   {req:"luck",   name:"ミラクルハンマー",   desc:"超広範囲を粉砕する奇跡の鎚"},
 };
-/* ============ パッシブ (8種) ============ */
+/* ============ パッシブ (11種) ============ */
 const PASSIVES = {
   power: {name:"パワーリング",   desc:"ダメージ +8% / Lv", max:5},
   boots: {name:"スピードブーツ", desc:"移動速度 +6% / Lv", max:5},
@@ -358,6 +397,9 @@ const PASSIVES = {
   herb:  {name:"やくそう",       desc:"HP自動回復 +0.45/s / Lv", max:5},
   jewel: {name:"クリティカルジュエル", desc:"クリティカル率 +6% / Lv (威力2倍)", max:5},
   amulet:{name:"おまもり",       desc:"受けるダメージ -6% / Lv", max:5},
+  swift: {name:"はやての羽",     desc:"弾のスピード +10% / Lv", max:5},
+  exp:   {name:"ものしりメガネ", desc:"獲得経験値 +8% / Lv", max:5},
+  luck:  {name:"よつばのクローバー", desc:"アイテム&コイン運 +20% / Lv", max:5},
 };
 const MAX_WEAPONS = 5, MAX_PASSIVES = 5;
 
@@ -405,6 +447,28 @@ const STAGES = [
    {id:"yukionna",  shape:"ghost", hp:40,  spd:28, dmg:14, xp:2,  gold:.20, color:"#cfe6ff", size:13, from:130},
    {id:"fknight",   shape:"knight",hp:115, spd:40, dmg:19, xp:5,  gold:.32, color:"#8ca8c8", size:14, from:280},
    {id:"frostdemon",shape:"demon", hp:230, spd:50, dmg:27, xp:11, gold:.46, color:"#6fb2e8", size:16, from:460},
+  ]},
+ {id:"storm", name:"あらしの神殿", desc:"雷鳴とどろく天空神殿。素早い敵の群れに注意",
+  ground:"#161228", tile:"#201a3c", deco:"#4a3d78", goldMul:2.0,
+  boss:{name:"サンダータイタン", shape:"titan", color:"#ffe066", hp:2300, spd:42, dmg:40, size:40},
+  bgm:"storm",
+  etypes:[
+   {id:"spark",    shape:"slime", hp:22,  spd:44, dmg:10, xp:2,  gold:.18, color:"#ffe066", size:11, from:0},
+   {id:"stormbat", shape:"bat",   hp:17,  spd:84, dmg:9,  xp:2,  gold:.18, color:"#c8b8ff", size:10, from:40},
+   {id:"evileye",  shape:"eye",   hp:52,  spd:34, dmg:16, xp:3,  gold:.26, color:"#b06adf", size:13, from:120},
+   {id:"gargoyle", shape:"knight",hp:150, spd:46, dmg:22, xp:6,  gold:.38, color:"#9aa4b8", size:14, from:270},
+   {id:"raijin",   shape:"demon", hp:300, spd:56, dmg:30, xp:13, gold:.55, color:"#ffd24a", size:16, from:450},
+  ]},
+ {id:"abyss", name:"まかいの城", desc:"すべての闇が集う最終決戦の地",
+  ground:"#1c0a12", tile:"#2a0f1e", deco:"#5a1d3a", goldMul:2.6,
+  boss:{name:"ダークロード", shape:"lord", color:"#ff3d7f", hp:3200, spd:44, dmg:48, size:42},
+  bgm:"abyss",
+  etypes:[
+   {id:"shadow",     shape:"ghost", hp:30,  spd:40, dmg:12, xp:2,  gold:.20, color:"#6a5a8a", size:12, from:0},
+   {id:"hellbat",    shape:"bat",   hp:24,  spd:88, dmg:11, xp:2,  gold:.20, color:"#ff5c7a", size:10, from:40},
+   {id:"deathknight",shape:"knight",hp:190, spd:48, dmg:26, xp:7,  gold:.42, color:"#8a4a6a", size:14, from:110},
+   {id:"abysseye",   shape:"eye",   hp:90,  spd:36, dmg:20, xp:4,  gold:.30, color:"#ff5c5c", size:13, from:250},
+   {id:"archdemon",  shape:"demon", hp:420, spd:58, dmg:36, xp:16, gold:.66, color:"#c05cff", size:17, from:440},
   ]},
 ];
 
@@ -519,6 +583,70 @@ const BODY = {
       "....dDDDDd....",
     ],
   },
+  mio:{
+    front:[
+      "...HHHHHHHH...",
+      "..HHHHHHHHHH..",
+      ".HHHHHHHHHHHH.",
+      ".HHFFFFFFFFHH.",
+      ".H.GBGFFGBG.H.",
+      ".H.FFFFFFFF.H.",
+      ".H.FRFFFFRF.H.",
+      ".HH.FFFFFF.HH.",
+      ".HH.ADDDDA.HH.",
+      ".HHDDDDDDDDHH.",
+      ".hHDDDDDDDDHh.",
+      ".h.DDDDDDDD.h.",
+      "...dDDDDDDd...",
+    ],
+    side:[
+      "....HHHHHHH...",
+      "...HHHHHHHHH..",
+      "..HHHHHHHHHH..",
+      "..HHFFFFFFH...",
+      "..HHGBGFFFH...",
+      "..HHFFFFFFH...",
+      "..HHFFFFRF....",
+      "..HH.FFFFF....",
+      "..HH.DDDDD....",
+      "..HHDDDDDDD...",
+      "..hHDDDDDDDF..",
+      "..h.DDDDDDD...",
+      "....dDDDDd....",
+    ],
+  },
+  hana:{
+    front:[
+      "...HHHHHHHH...",
+      "..HHHHAHHHHH..",
+      ".HHHHHAAHHHHH.",
+      ".HHFFFFFFFFHH.",
+      ".H.FBFFFFBF.H.",
+      "...FFFFFFFF...",
+      "...FRFFFFRF...",
+      "....FFFFFF....",
+      "...WDDDDDDW...",
+      "..DDDDDDDDDD..",
+      ".FDDDDDDDDDDF.",
+      ".F.DDDDDDDD.F.",
+      "...dDdDDdDd...",
+    ],
+    side:[
+      "....HHHHHHH...",
+      "...HHHAAHHHH..",
+      "..HHHHHHHHHH..",
+      "..HHFFFFFFH...",
+      "..HHFFBFFFH...",
+      "..HHFFFFFFH...",
+      "...HFFFFRF....",
+      "....FFFFFF....",
+      "...WDDDDDW....",
+      "...DDDDDDDD...",
+      "...DDDDDDDDF..",
+      "...DDDDDDDD...",
+      "....dDDdDD....",
+    ],
+  },
 };
 const LEGS = {
   front:[["...FF....FF...","...SS....SS..."],["....FF..FF....","....SS..SS...."]],
@@ -529,7 +657,7 @@ function backRows(front){
 }
 function girlSprites(ch){
   const pal = {H:ch.hair, h:ch.hairS, F:"#ffdcc4", B:"#2b2340", R:"#ff9ab0",
-               D:ch.dress, d:ch.dressS, A:ch.accent, W:"#dfe4ee", S:ch.shoe};
+               D:ch.dress, d:ch.dressS, A:ch.accent, W:"#dfe4ee", S:ch.shoe, G:"#3a3450"};
   const build=(body,legsKey)=>[0,1].map(f=>makeSprite(body.concat(LEGS[legsKey][f]),pal));
   const b = BODY[ch.id];
   return {
@@ -548,6 +676,9 @@ const SHAPES = {
   knight:["..CCCC..",".CCCCCC.",".CBBBBC.","CCCCCCCC","CCCCCCCC",".C.CC.C."],
   dragon:["C....CC....C","CC..CCCC..CC",".CCCCCCCCCC.","CCBCCCCCCBCC","CCCCCCCCCCCC",".CCWCWWCWCC.","..CC.CC.CC.."],
   queen: [".A.A.AA.A.A.",".AAAAAAAAAA.",".CCCCCCCCCC.",".CBCCCCCCBC.",".CCCCCCCCCC.","CCCCCCCCCCCC",".CCCCCCCCCC.","..C.CCCC.C.."],
+  eye:   ["..CCCC..",".CCCCCC.","CCWWWWCC","CCWBBWCC",".CCWWCC.","..CCCC.."],
+  titan: ["CCCCCCCCCC","CBBCCCCBBC","CCCCCCCCCC",".CCCCCCCC.","CCCCCCCCCC","CC.CCCC.CC","CC.CCCC.CC"],
+  lord:  ["C...C..C...C","CC..CCCC..CC",".CCCCCCCCCC.",".CBCCCCCCBC.",".CCCWWWWCCC.","CCCCCCCCCCCC",".CCCCCCCCCC.","..C..CC..C.."],
 };
 const enemySprites = {};
 STAGES.forEach(s=>{
@@ -601,6 +732,14 @@ const TRACKS = {
     bass:[38,0,0,45, 0,0,38,0, 41,0,0,48, 0,0,41,0],
     lead:[74,77,81,86, 81,77,74,77, 69,74,77,81, 77,74,69,74,
           74,77,81,86, 88,86,81,77, 79,77,74,72, 74,0,0,0]},
+  storm:{tempo:168, leadWave:"square", bassWave:"sawtooth",
+    bass:[38,38,45,38, 38,38,46,45, 36,36,43,36, 41,43,45,46],
+    lead:[74,0,74,77, 81,77,74,72, 74,0,72,70, 72,74,77,81,
+          86,84,81,77, 81,77,74,72, 70,72,74,77, 74,0,0,0]},
+  abyss:{tempo:96, leadWave:"sawtooth", bassWave:"triangle",
+    bass:[33,0,0,0, 36,0,0,0, 31,0,0,0, 38,0,36,0],
+    lead:[57,60,64,63, 64,0,60,57, 55,58,62,61, 62,0,58,55,
+          57,60,64,69, 68,64,60,57, 63,62,58,55, 57,0,0,0]},
 };
 const Music = {
   timer:null, next:0, step:0, tr:null,
@@ -693,9 +832,9 @@ function newGame(stageIdx){
     px:0, py:0, hp:maxhp, maxhp,
     lvl:1, xp:0, xpNext:5,
     weapons:{}, passives:{}, evolved:{}, limit:{}, trainLv:0,
-    cds:{}, droneCds:[],
+    cds:{}, droneCds:[], fairyCds:[], novas:[],
     projs:[], enemies:[], gems:[], coins:[], texts:[], fx:[], zones:[], mines:[], items:[], chests:[],
-    banishes:2, rerolls:2, banned:new Set(),
+    banishes:2+upLv("banish"), rerolls:2+upLv("reroll"), banned:new Set(),
     spawnT:0, eliteT:45, nextBossTime:120, bossAlive:false,
     feverT:0,
     face:1, dir:"down", anim:0, moving:false, lastDx:1, lastDy:0,
@@ -717,6 +856,9 @@ function pstat(g){
     greed: (1 + 0.12*upLv("greed")) * (g.feverT>0?5:1),
     crit:  0.06*(g.passives.jewel||0),
     armor: Math.min(0.7, 0.06*(g.passives.amulet||0)),
+    proj:  (1 + 0.05*upLv("swift")) * (1 + 0.10*(g.passives.swift||0)),
+    xpMul: (1 + 0.05*upLv("exp"))   * (1 + 0.08*(g.passives.exp||0)),
+    luck:  (1 + 0.10*upLv("luck"))  * (1 + 0.20*(g.passives.luck||0)),
   };
 }
 
@@ -757,7 +899,7 @@ window.addEventListener("gamepadconnected", ()=>{
 window.addEventListener("gamepaddisconnected", ()=>{
   const el=document.getElementById("gpind"); if(el) el.classList.remove("on");
 });
-const GP = { mx:0, my:0, prevButtons:[], _axV:0 };
+const GP = { mx:0, my:0, prevButtons:[], _axV:0, connected:false };
 const GPFocus = { list: [] , idx: 0 };
 function gpSetFocusables(elements){
   GPFocus.list = (elements||[]).filter(Boolean);
@@ -766,7 +908,8 @@ function gpSetFocusables(elements){
 }
 function gpUpdateFocusHighlight(){
   GPFocus.list.forEach((el,i)=>{
-    if(i===GPFocus.idx) el.classList.add("gp-sel"); else el.classList.remove("gp-sel");
+    if(GP.connected && i===GPFocus.idx) el.classList.add("gp-sel");
+    else el.classList.remove("gp-sel");
   });
 }
 function gpMoveFocus(delta){
@@ -795,7 +938,14 @@ function pollGamepad(){
   const pads = (navigator.getGamepads && navigator.getGamepads()) || [];
   let p = null;
   for(let i=0;i<pads.length;i++){ if(pads[i]){ p=pads[i]; break; } }
-  if(!p){ GP.mx=0; GP.my=0; GP.prevButtons=[]; return; }
+  const wasConn = GP.connected;
+  if(!p){
+    GP.mx=0; GP.my=0; GP.prevButtons=[]; GP.connected=false;
+    if(wasConn) gpUpdateFocusHighlight();
+    return;
+  }
+  GP.connected = true;
+  if(!wasConn) gpUpdateFocusHighlight();
   const dz=0.22;
   let ax = p.axes[0]||0, ay = p.axes[1]||0;
   if(Math.abs(ax)<dz) ax=0; if(Math.abs(ay)<dz) ay=0;
@@ -891,12 +1041,12 @@ function killEnemy(g, e){
   g.kills++;
   /* XPは時間経過でスケール → レベルが敵インフレに追従する */
   g.gems.push({x:e.x, y:e.y, xp:Math.ceil(e.xp*(1+g.time/240)), t:0});
-  const coinChance = g.feverT>0 ? 1.0 : 0.25;
+  const coinChance = g.feverT>0 ? 1.0 : Math.min(1, 0.25*(g.luck||1));
   if(e.boss || e.elite || Math.random() < coinChance){
     g.coins.push({x:e.x+rnd(-8,8), y:e.y+rnd(-8,8), v:Math.max(1,Math.round(e.gold*(e.boss?1:4)*g.stage.goldMul*g.diff.gold))});
   }
-  /* お助けアイテムドロップ: エリート60% / 通常0.4% */
-  if(e.elite && Math.random()<0.6 || (!e.boss && !e.elite && Math.random()<0.004)){
+  /* お助けアイテムドロップ: エリート60%×運 / 通常0.4%×運 */
+  if(e.elite && Math.random()<Math.min(0.95, 0.6*(g.luck||1)) || (!e.boss && !e.elite && Math.random()<0.004*(g.luck||1))){
     const kinds=["heart","bomb","fever","vacuum"];
     g.items.push({x:e.x, y:e.y, kind:kinds[Math.floor(Math.random()*kinds.length)], t:0});
   }
@@ -918,7 +1068,14 @@ function wstat(g, wid){
   if(st.dps!==undefined) st.dps *= lb;
   return st;
 }
-function newProj(o){ o.hitset = new Set(); return o; }
+function newProj(o){
+  o.hitset = new Set();
+  const m = (G && G.projMul) || 1;
+  o.vx *= m; o.vy *= m;
+  if(o.ax!==undefined){ o.ax*=m; o.ay*=m; }
+  if(o.homing) o.homing *= m;
+  return o;
+}
 function fireWeapons(g, dt, ps){
   const aimA = ()=>Math.atan2(g.lastDy, g.lastDx||g.face);
   for(const wid in g.weapons){
@@ -939,6 +1096,22 @@ function fireWeapons(g, dt, ps){
         g.projs.push(newProj({x:dx,y:dy,vx:Math.cos(ta)*st.spd,vy:Math.sin(ta)*st.spd,
           dmg:st.dmg*ps.might, life:1.5, size:3, kind:"dbolt", pierce:0}));
         g.droneCds[i] = st.cd*ps.cool;
+      }
+      continue;
+    }
+    if(wid==="fairy"){
+      while(g.fairyCds.length < st.count) g.fairyCds.push(rnd(0,st.cd));
+      g.fairyCds.length = st.count;
+      for(let i=0;i<st.count;i++){
+        g.fairyCds[i] -= dt;
+        if(g.fairyCds[i]>0) continue;
+        const fx = g.px + Math.cos(g.time*0.9+i*2.4)*(46+Math.sin(g.time*1.7+i)*18);
+        const fy = g.py + Math.sin(g.time*1.3+i*1.9)*(40+Math.cos(g.time*1.1+i)*16) - 8;
+        const tgt = nearestEnemy(g, fx, fy, st.range);
+        if(!tgt){ g.fairyCds[i]=0.12; continue; }
+        damageEnemy(g, tgt, st.dmg*ps.might);
+        g.fx.push({kind:"zap", x1:fx, y1:fy, x2:tgt.x, y2:tgt.y, t:0.12});
+        g.fairyCds[i] = st.cd*ps.cool;
       }
       continue;
     }
@@ -1046,6 +1219,40 @@ function fireWeapons(g, dt, ps){
         g.mines.push({x:g.px+rnd(-24,24), y:g.py+rnd(-24,24),
           dmg:st.dmg*ps.might, blast:st.blast, armT:0.5});
       }
+    } else if(wid==="lance"){
+      const tgt = nearestEnemy(g, g.px, g.py, 520);
+      const a = tgt ? Math.atan2(tgt.y-g.py, tgt.x-g.px) : aimA();
+      for(let i=0;i<st.count;i++){
+        const aa = a + (i-(st.count-1)/2)*0.25;
+        g.projs.push(newProj({x:g.px,y:g.py,vx:Math.cos(aa)*st.spd,vy:Math.sin(aa)*st.spd,
+          dmg:st.dmg*ps.might, life:1.0, size:9, kind:"lance", pierce:999}));
+      }
+    } else if(wid==="card"){
+      for(let i=0;i<st.dirs;i++){
+        const a = Math.PI/4 + i*Math.PI*2/st.dirs;
+        g.projs.push(newProj({x:g.px,y:g.py,vx:Math.cos(a)*st.spd,vy:Math.sin(a)*st.spd,
+          dmg:st.dmg*ps.might, life:1.8, size:5, kind:"card", pierce:st.pierce, spin:0}));
+      }
+    } else if(wid==="book"){
+      for(let i=0;i<st.count;i++){
+        const a = g.time*2 + i*Math.PI*2/st.count;
+        g.projs.push(newProj({x:g.px,y:g.py,vx:Math.cos(a)*st.spd,vy:Math.sin(a)*st.spd,
+          dmg:st.dmg*ps.might, life:1.6, size:4, kind:"page", pierce:st.pierce, turn:1.4}));
+      }
+    } else if(wid==="nova"){
+      g.novas.push({x:g.px, y:g.py, r:8, maxR:st.maxR, dmg:st.dmg*ps.might, hitset:new Set()});
+    } else if(wid==="hammer"){
+      for(let i=0;i<st.count;i++){
+        const tgt = nearestEnemy(g, g.px, g.py, 280);
+        const tx = tgt ? tgt.x : g.px+rnd(-120,120);
+        const ty = tgt ? tgt.y : g.py+rnd(-120,120);
+        for(const e of g.enemies.slice()){
+          if(Math.hypot(e.x-tx, e.y-ty) < st.blast+e.size) damageEnemy(g, e, st.dmg*ps.might);
+        }
+        g.fx.push({kind:"hammer", x:tx, y:ty, t:0.3});
+        g.fx.push({kind:"boom", x:tx, y:ty, t:0.25});
+      }
+      SFX.hit();
     } else fired = false;
     if(fired) g.cds[wid] = st.cd*ps.cool;
   }
@@ -1135,6 +1342,7 @@ function weaponDPS(g, wid){
   let hits = st.count || 1;
   if(wid==="whip" && st.both) hits *= 2;
   if(wid==="laser") hits = st.dirs;
+  if(wid==="card") hits = st.dirs;
   if(wid==="thunder") hits = st.count * (1 + (st.chain||0)*0.6);
   return (st.dmg * hits / cd) * might;
 }
@@ -1150,6 +1358,9 @@ function update(dt){
   const g = G, ps = pstat(g);
   g.time += dt;
   g.psCrit = ps.crit;
+  g.projMul = ps.proj;
+  g.xpMul = ps.xpMul;
+  g.luck = ps.luck;
   g.feverT = Math.max(0, g.feverT - dt);
 
   /* 移動 */
@@ -1206,6 +1417,11 @@ function update(dt){
         const na = ca + Math.sign(da)*Math.min(Math.abs(da), 6*dt);
         p.vx = Math.cos(na)*p.homing; p.vy = Math.sin(na)*p.homing;
       }
+    }
+    if(p.turn){
+      const ta=Math.atan2(p.vy,p.vx)+p.turn*dt;
+      const sp=Math.hypot(p.vx,p.vy);
+      p.vx=Math.cos(ta)*sp; p.vy=Math.sin(ta)*sp;
     }
     if(p.ax!==undefined){ p.vx += p.ax*dt; p.vy += p.ay*dt;
       if(p.phase===0 && (p.vx*p.ax+p.vy*p.ay)>0){ p.phase=1; p.hitset.clear(); } }
@@ -1272,6 +1488,19 @@ function update(dt){
         if(e.hp<=0) killEnemy(g,e);
       }
     }
+  }
+  /* ノヴァパルス */
+  for(let i=g.novas.length-1;i>=0;i--){
+    const n=g.novas[i];
+    n.r += 260*dt;
+    for(const e of g.enemies.slice()){
+      if(n.hitset.has(e)) continue;
+      if(Math.abs(Math.hypot(e.x-n.x, e.y-n.y) - n.r) < e.size+10){
+        n.hitset.add(e);
+        damageEnemy(g, e, n.dmg);
+      }
+    }
+    if(n.r >= n.maxR) g.novas.splice(i,1);
   }
   /* じらい */
   for(let i=g.mines.length-1;i>=0;i--){
@@ -1378,7 +1607,7 @@ function update(dt){
   if(!g.endless && g.time>=900){ stageWin(); return; }
 }
 function gainXP(g, xp){
-  g.xp += xp;
+  g.xp += xp * (g.xpMul||1);
   while(g.xp >= g.xpNext){
     g.xp -= g.xpNext;
     g.lvl++;
@@ -1388,6 +1617,30 @@ function gainXP(g, xp){
     openLevelUp();
   }
 }
+
+/* ============ タップ2段階確定 (誤タップ防止 / パッド非接続時のみ) ============ */
+const TapC = { div:null, action:null, btn:null };
+function resetTapConfirm(){
+  if(TapC.div) TapC.div.classList.remove("gp-sel");
+  if(TapC.btn) TapC.btn.style.display="none";
+  TapC.div=null; TapC.action=null; TapC.btn=null;
+}
+function tapSelect(div, action, btnId){
+  if(GP.connected){ action(); return; } /* パッド接続時は従来どおり即決定 */
+  if(TapC.div===div) return; /* 同じカード再タップは確定ボタン待ち */
+  if(TapC.div) TapC.div.classList.remove("gp-sel");
+  const btn=document.getElementById(btnId);
+  TapC.div=div; TapC.action=action; TapC.btn=btn;
+  div.classList.add("gp-sel");
+  btn.style.display="block";
+  beep(600,.04,"square",.03);
+}
+document.getElementById("b-lvok").onclick=()=>{
+  const a=TapC.action; if(a){ resetTapConfirm(); a(); }
+};
+document.getElementById("b-chestok").onclick=()=>{
+  const a=TapC.action; if(a){ resetTapConfirm(); a(); }
+};
 
 /* ============ レベルアップ & 進化 & 限界突破 ============ */
 function eligibleEvos(g){
@@ -1456,6 +1709,8 @@ function weaponEffectPreview(wid, curLv, evolved){
     parts.push(`方向 ${cur.dirs}→${next.dirs}`);
   if(cur.blast!==undefined && next.blast!==undefined && Math.round(cur.blast)!==Math.round(next.blast))
     parts.push(`爆発範囲 ${Math.round(cur.blast)}→${Math.round(next.blast)}`);
+  if(cur.maxR!==undefined && next.maxR!==undefined && Math.round(cur.maxR)!==Math.round(next.maxR))
+    parts.push(`範囲 ${Math.round(cur.maxR)}→${Math.round(next.maxR)}`);
   if(cur.len!==undefined && next.len!==undefined && Math.round(cur.len)!==Math.round(next.len))
     parts.push(`長さ ${Math.round(cur.len)}→${Math.round(next.len)}`);
   return parts.join(" / ");
@@ -1471,6 +1726,9 @@ function passiveEffectPreview(pid, curLv){
     case "herb":   return `HP自動回復 +${(curLv*0.45).toFixed(2)}/s → +${(nextLv*0.45).toFixed(2)}/s`;
     case "jewel":  return `クリティカル率 +${curLv*6}% → +${nextLv*6}%`;
     case "amulet": return `被ダメージ -${Math.min(70,curLv*6)}% → -${Math.min(70,nextLv*6)}%`;
+    case "swift":  return `弾スピード +${curLv*10}% → +${nextLv*10}%`;
+    case "exp":    return `獲得経験値 +${curLv*8}% → +${nextLv*8}%`;
+    case "luck":   return `アイテム&コイン運 +${curLv*20}% → +${nextLv*20}%`;
   }
   return "";
 }
@@ -1546,6 +1804,7 @@ function updateLvupButtons(){
   document.getElementById("banish-hint").style.display = banishMode?"block":"none";
 }
 function renderLvupCards(){
+  resetTapConfirm();
   const box=document.getElementById("lvup-cards");
   box.innerHTML="";
   const picks=buildChoices(G);
@@ -1555,6 +1814,7 @@ function renderLvupCards(){
     div.onclick = ()=>{
       if(banishMode){
         if(c.kind==="w"||c.kind==="p"){
+          resetTapConfirm();
           G.banned.add((c.kind==="w"?"w:":"p:")+c.id);
           G.banishes--;
           banishMode=false;
@@ -1564,7 +1824,7 @@ function renderLvupCards(){
         /* 進化/限界突破/その他は削除対象外 */
         return;
       }
-      orig();
+      tapSelect(div, orig, "b-lvok");
     };
     box.appendChild(div);
   });
@@ -1576,6 +1836,7 @@ function openLevelUp(){
   state="levelup";
   SFX.levelup();
   banishMode = false;
+  resetTapConfirm();
   document.getElementById("lvup-title").textContent = "LEVEL UP!";
   renderLvupCards();
   updateLvupButtons();
@@ -1598,6 +1859,7 @@ document.getElementById("b-reroll").onclick=()=>{
 };
 function closeLevelUp(){
   banishMode=false;
+  resetTapConfirm();
   document.getElementById("ovl-lvup").classList.remove("on");
   state="play";
   lastT = performance.now();
@@ -1633,6 +1895,7 @@ function buildChestChoices(g){
 function openChest(){
   state="chest";
   SFX.chest();
+  resetTapConfirm();
   const box=document.getElementById("chest-cards");
   box.innerHTML="";
   const picks=buildChestChoices(G);
@@ -1651,12 +1914,15 @@ function openChest(){
     } else {
       div = makeChoiceCard(c, closeChest);
     }
+    const act = div.onclick;
+    div.onclick = ()=> tapSelect(div, act, "b-chestok");
     box.appendChild(div);
   });
   gpSetFocusables(Array.prototype.slice.call(box.children));
   document.getElementById("ovl-chest").classList.add("on");
 }
 function closeChest(){
+  resetTapConfirm();
   document.getElementById("ovl-chest").classList.remove("on");
   state="play";
   lastT = performance.now();
@@ -1835,6 +2101,28 @@ function draw(){
       ctx.fillStyle="#6fd8ff"; ctx.fillRect(x-6,y-1,2,2); ctx.fillRect(x+4,y-1,2,2);
     }
   }
+  /* ようせい */
+  if(g.weapons.fairy){
+    const stf=wstat(g,"fairy");
+    for(let i=0;i<stf.count;i++){
+      const fx = g.px + Math.cos(g.time*0.9+i*2.4)*(46+Math.sin(g.time*1.7+i)*18) - camx;
+      const fy = g.py + Math.sin(g.time*1.3+i*1.9)*(40+Math.cos(g.time*1.1+i)*16) - 8 - camy;
+      ctx.fillStyle="rgba(255,255,255,0.7)";
+      ctx.fillRect(fx-5,fy-1,3,2); ctx.fillRect(fx+3,fy-1,3,2);
+      ctx.fillStyle=g.evolved.fairy?"#ffd24a":"#a8f0b8";
+      ctx.fillRect(fx-2,fy-2,5,5);
+      if(Math.floor(g.time*6+i)%3===0){ ctx.fillStyle="#fff"; ctx.fillRect(fx-1,fy-5,2,2); }
+    }
+  }
+  /* ノヴァパルス */
+  for(const n of g.novas){
+    const nx=n.x-camx, ny=n.y-camy;
+    ctx.strokeStyle = g.evolved.nova ? "rgba(192,92,255,0.7)" : "rgba(160,220,255,0.6)";
+    ctx.lineWidth=5;
+    ctx.beginPath(); ctx.arc(nx,ny,Math.max(0,n.r),0,7); ctx.stroke();
+    ctx.strokeStyle="rgba(255,255,255,0.4)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(nx,ny,Math.max(0,n.r-4),0,7); ctx.stroke();
+  }
   /* 弾 */
   for(const p of g.projs){
     const x=p.x-camx,y=p.y-camy;
@@ -1849,6 +2137,9 @@ function draw(){
     }
     else if(p.kind==="axe"){ ctx.save(); ctx.translate(x,y); ctx.rotate(p.spin); ctx.fillStyle="#b9925a"; ctx.fillRect(-2,-p.size,4,p.size*2); ctx.fillStyle="#d8dce8"; ctx.fillRect(-p.size,-p.size,p.size,p.size); ctx.restore(); }
     else if(p.kind==="boomerang"){ ctx.save(); ctx.translate(x,y); ctx.rotate(p.spin); ctx.fillStyle=g.evolved.boomerang?"#9ff0ff":"#8fe8c8"; ctx.fillRect(-p.size,-3,p.size*2,6); ctx.fillRect(-3,-p.size,6,p.size*2); ctx.restore(); }
+    else if(p.kind==="lance"){ ctx.save(); ctx.translate(x,y); ctx.rotate(Math.atan2(p.vy,p.vx)); ctx.fillStyle="#ffe9a0"; ctx.fillRect(-16,-3,32,6); ctx.fillStyle="#fff"; ctx.fillRect(8,-2,10,4); ctx.restore(); }
+    else if(p.kind==="card"){ ctx.save(); ctx.translate(x,y); ctx.rotate(p.spin); ctx.fillStyle="#f4f4ff"; ctx.fillRect(-4,-6,8,12); ctx.fillStyle="#ff5c5c"; ctx.fillRect(-2,-3,4,4); ctx.restore(); }
+    else if(p.kind==="page"){ ctx.save(); ctx.translate(x,y); ctx.rotate(Math.atan2(p.vy,p.vx)); ctx.fillStyle="#e8f4ff"; ctx.fillRect(-4,-3,8,6); ctx.fillStyle="#b6aed8"; ctx.fillRect(-2,-1,4,1); ctx.restore(); }
     else { ctx.fillStyle="#ff8c3a"; ctx.beginPath(); ctx.arc(x,y,p.size,0,7); ctx.fill(); ctx.fillStyle="#ffd24a"; ctx.beginPath(); ctx.arc(x,y,p.size*0.55,0,7); ctx.fill(); }
   }
   /* FX */
@@ -1892,6 +2183,14 @@ function draw(){
       ctx.fillStyle=`rgba(255,255,255,${al*0.8})`;
       ctx.fillRect(0,-2, f.len*0.9, 4);
       ctx.restore();
+    } else if(f.kind==="zap"){
+      ctx.strokeStyle=`rgba(200,255,210,${f.t/0.12})`; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(f.x1-camx,f.y1-camy); ctx.lineTo(f.x2-camx,f.y2-camy); ctx.stroke();
+    } else if(f.kind==="hammer"){
+      const hx=f.x-camx, hy=f.y-camy - (f.t/0.3)*36;
+      ctx.fillStyle="#b9925a"; ctx.fillRect(hx-2,hy-4,4,16);
+      ctx.fillStyle="#8a8fa8"; ctx.fillRect(hx-11,hy-16,22,12);
+      ctx.fillStyle="#dfe4ee"; ctx.fillRect(hx-11,hy-16,22,3);
     } else if(f.kind==="flash"){
       ctx.fillStyle=`rgba(255,255,255,${f.t/0.3*0.8})`;
       ctx.fillRect(0,0,W,H);
@@ -2003,9 +2302,10 @@ function draw(){
 const HUD_ICONS = {
   w:{bolt:"✦", kunai:"刃", blade:"輪", aura:"環", thunder:"雷", fire:"炎",
      whip:"鞭", axe:"斧", boomerang:"回", ice:"氷", bottle:"毒", drone:"機",
-     laser:"光", rain:"矢", homing:"心", mine:"爆"},
+     laser:"光", rain:"矢", homing:"心", mine:"爆",
+     lance:"槍", nova:"波", book:"本", fairy:"妖", card:"札", hammer:"鎚"},
   p:{power:"力", boots:"靴", heart:"命", clock:"時", magnet:"磁", herb:"草",
-     jewel:"晶", amulet:"守"},
+     jewel:"晶", amulet:"守", swift:"羽", exp:"知", luck:"運"},
 };
 function drawHudIcon(x, y, glyph, color, lv){
   ctx.fillStyle="rgba(12,10,22,0.78)";
